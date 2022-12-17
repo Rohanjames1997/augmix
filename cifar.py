@@ -27,6 +27,8 @@ import os
 import shutil
 import time
 
+from tqdm import tqdm
+
 import augmentations
 from models.cifar.allconv import AllConvNet
 import numpy as np
@@ -46,7 +48,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument(
     '--dataset',
     type=str,
-    default='cifar10',
+    default='cifar100',
     choices=['cifar10', 'cifar100'],
     help='Choose between CIFAR-10, CIFAR-100.')
 parser.add_argument(
@@ -315,126 +317,134 @@ def main():
     num_classes = 100
 
   train_data = AugMixDataset(train_data, preprocess, args.no_jsd)
-  train_loader = torch.utils.data.DataLoader(
-      train_data,
-      batch_size=args.batch_size,
-      shuffle=True,
-      num_workers=args.num_workers,
-      pin_memory=True)
+  loader = torch.utils.data.DataLoader(train_data, batch_size=1, shuffle=True)
+  i = 0
+  for image, target in tqdm(loader):
+    save_path = './AUGMIX/' + str(target.item()) + '/'
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+    save_path += str(i) + ".jpeg"
+    image.save(save_path)
+    i += 1
+  # train_loader = torch.utils.data.DataLoader(
+  #     train_data,
+  #     batch_size=args.batch_size,
+  #     shuffle=True,
+  #     num_workers=args.num_workers,
+  #     pin_memory=True)
 
-  test_loader = torch.utils.data.DataLoader(
-      test_data,
-      batch_size=args.eval_batch_size,
-      shuffle=False,
-      num_workers=args.num_workers,
-      pin_memory=True)
+  # test_loader = torch.utils.data.DataLoader(
+  #     test_data,
+  #     batch_size=args.eval_batch_size,
+  #     shuffle=False,
+  #     num_workers=args.num_workers,
+  #     pin_memory=True)
 
-  # Create model
-  if args.model == 'densenet':
-    net = densenet(num_classes=num_classes)
-  elif args.model == 'wrn':
-    net = WideResNet(args.layers, num_classes, args.widen_factor, args.droprate)
-  elif args.model == 'allconv':
-    net = AllConvNet(num_classes)
-  elif args.model == 'resnext':
-    net = resnext29(num_classes=num_classes)
+  # # Create model
+  # if args.model == 'densenet':
+  #   net = densenet(num_classes=num_classes)
+  # elif args.model == 'wrn':
+  #   net = WideResNet(args.layers, num_classes, args.widen_factor, args.droprate)
+  # elif args.model == 'allconv':
+  #   net = AllConvNet(num_classes)
+  # elif args.model == 'resnext':
+  #   net = resnext29(num_classes=num_classes)
 
-  optimizer = torch.optim.SGD(
-      net.parameters(),
-      args.learning_rate,
-      momentum=args.momentum,
-      weight_decay=args.decay,
-      nesterov=True)
+  # optimizer = torch.optim.SGD(
+  #     net.parameters(),
+  #     args.learning_rate,
+  #     momentum=args.momentum,
+  #     weight_decay=args.decay,
+  #     nesterov=True)
 
-  # Distribute model across all visible GPUs
-  net = torch.nn.DataParallel(net).cuda()
-  cudnn.benchmark = True
+  # # Distribute model across all visible GPUs
+  # net = torch.nn.DataParallel(net).cuda()
+  # cudnn.benchmark = True
 
-  start_epoch = 0
+  # start_epoch = 0
 
-  if args.resume:
-    if os.path.isfile(args.resume):
-      checkpoint = torch.load(args.resume)
-      start_epoch = checkpoint['epoch'] + 1
-      best_acc = checkpoint['best_acc']
-      net.load_state_dict(checkpoint['state_dict'])
-      optimizer.load_state_dict(checkpoint['optimizer'])
-      print('Model restored from epoch:', start_epoch)
+  # if args.resume:
+  #   if os.path.isfile(args.resume):
+  #     checkpoint = torch.load(args.resume)
+  #     start_epoch = checkpoint['epoch'] + 1
+  #     best_acc = checkpoint['best_acc']
+  #     net.load_state_dict(checkpoint['state_dict'])
+  #     optimizer.load_state_dict(checkpoint['optimizer'])
+  #     print('Model restored from epoch:', start_epoch)
 
-  if args.evaluate:
-    # Evaluate clean accuracy first because test_c mutates underlying data
-    test_loss, test_acc = test(net, test_loader)
-    print('Clean\n\tTest Loss {:.3f} | Test Error {:.2f}'.format(
-        test_loss, 100 - 100. * test_acc))
+  # if args.evaluate:
+  #   # Evaluate clean accuracy first because test_c mutates underlying data
+  #   test_loss, test_acc = test(net, test_loader)
+  #   print('Clean\n\tTest Loss {:.3f} | Test Error {:.2f}'.format(
+  #       test_loss, 100 - 100. * test_acc))
 
-    test_c_acc = test_c(net, test_data, base_c_path)
-    print('Mean Corruption Error: {:.3f}'.format(100 - 100. * test_c_acc))
-    return
+  #   test_c_acc = test_c(net, test_data, base_c_path)
+  #   print('Mean Corruption Error: {:.3f}'.format(100 - 100. * test_c_acc))
+  #   return
 
-  scheduler = torch.optim.lr_scheduler.LambdaLR(
-      optimizer,
-      lr_lambda=lambda step: get_lr(  # pylint: disable=g-long-lambda
-          step,
-          args.epochs * len(train_loader),
-          1,  # lr_lambda computes multiplicative factor
-          1e-6 / args.learning_rate))
+  # scheduler = torch.optim.lr_scheduler.LambdaLR(
+  #     optimizer,
+  #     lr_lambda=lambda step: get_lr(  # pylint: disable=g-long-lambda
+  #         step,
+  #         args.epochs * len(train_loader),
+  #         1,  # lr_lambda computes multiplicative factor
+  #         1e-6 / args.learning_rate))
 
-  if not os.path.exists(args.save):
-    os.makedirs(args.save)
-  if not os.path.isdir(args.save):
-    raise Exception('%s is not a dir' % args.save)
+  # if not os.path.exists(args.save):
+  #   os.makedirs(args.save)
+  # if not os.path.isdir(args.save):
+  #   raise Exception('%s is not a dir' % args.save)
 
-  log_path = os.path.join(args.save,
-                          args.dataset + '_' + args.model + '_training_log.csv')
-  with open(log_path, 'w') as f:
-    f.write('epoch,time(s),train_loss,test_loss,test_error(%)\n')
+  # log_path = os.path.join(args.save,
+  #                         args.dataset + '_' + args.model + '_training_log.csv')
+  # with open(log_path, 'w') as f:
+  #   f.write('epoch,time(s),train_loss,test_loss,test_error(%)\n')
 
-  best_acc = 0
-  print('Beginning training from epoch:', start_epoch + 1)
-  for epoch in range(start_epoch, args.epochs):
-    begin_time = time.time()
+  # best_acc = 0
+  # print('Beginning training from epoch:', start_epoch + 1)
+  # for epoch in range(start_epoch, args.epochs):
+  #   begin_time = time.time()
 
-    train_loss_ema = train(net, train_loader, optimizer, scheduler)
-    test_loss, test_acc = test(net, test_loader)
+  #   train_loss_ema = train(net, train_loader, optimizer, scheduler)
+  #   test_loss, test_acc = test(net, test_loader)
 
-    is_best = test_acc > best_acc
-    best_acc = max(test_acc, best_acc)
-    checkpoint = {
-        'epoch': epoch,
-        'dataset': args.dataset,
-        'model': args.model,
-        'state_dict': net.state_dict(),
-        'best_acc': best_acc,
-        'optimizer': optimizer.state_dict(),
-    }
+  #   is_best = test_acc > best_acc
+  #   best_acc = max(test_acc, best_acc)
+  #   checkpoint = {
+  #       'epoch': epoch,
+  #       'dataset': args.dataset,
+  #       'model': args.model,
+  #       'state_dict': net.state_dict(),
+  #       'best_acc': best_acc,
+  #       'optimizer': optimizer.state_dict(),
+  #   }
 
-    save_path = os.path.join(args.save, 'checkpoint.pth.tar')
-    torch.save(checkpoint, save_path)
-    if is_best:
-      shutil.copyfile(save_path, os.path.join(args.save, 'model_best.pth.tar'))
+  #   save_path = os.path.join(args.save, 'checkpoint.pth.tar')
+  #   torch.save(checkpoint, save_path)
+  #   if is_best:
+  #     shutil.copyfile(save_path, os.path.join(args.save, 'model_best.pth.tar'))
 
-    with open(log_path, 'a') as f:
-      f.write('%03d,%05d,%0.6f,%0.5f,%0.2f\n' % (
-          (epoch + 1),
-          time.time() - begin_time,
-          train_loss_ema,
-          test_loss,
-          100 - 100. * test_acc,
-      ))
+  #   with open(log_path, 'a') as f:
+  #     f.write('%03d,%05d,%0.6f,%0.5f,%0.2f\n' % (
+  #         (epoch + 1),
+  #         time.time() - begin_time,
+  #         train_loss_ema,
+  #         test_loss,
+  #         100 - 100. * test_acc,
+  #     ))
 
-    print(
-        'Epoch {0:3d} | Time {1:5d} | Train Loss {2:.4f} | Test Loss {3:.3f} |'
-        ' Test Error {4:.2f}'
-        .format((epoch + 1), int(time.time() - begin_time), train_loss_ema,
-                test_loss, 100 - 100. * test_acc))
+  #   print(
+  #       'Epoch {0:3d} | Time {1:5d} | Train Loss {2:.4f} | Test Loss {3:.3f} |'
+  #       ' Test Error {4:.2f}'
+  #       .format((epoch + 1), int(time.time() - begin_time), train_loss_ema,
+  #               test_loss, 100 - 100. * test_acc))
 
-  test_c_acc = test_c(net, test_data, base_c_path)
-  print('Mean Corruption Error: {:.3f}'.format(100 - 100. * test_c_acc))
+  # test_c_acc = test_c(net, test_data, base_c_path)
+  # print('Mean Corruption Error: {:.3f}'.format(100 - 100. * test_c_acc))
 
-  with open(log_path, 'a') as f:
-    f.write('%03d,%05d,%0.6f,%0.5f,%0.2f\n' %
-            (args.epochs + 1, 0, 0, 0, 100 - 100 * test_c_acc))
-
+  # with open(log_path, 'a') as f:
+  #   f.write('%03d,%05d,%0.6f,%0.5f,%0.2f\n' %
+  #           (args.epochs + 1, 0, 0, 0, 100 - 100 * test_c_acc))
 
 if __name__ == '__main__':
   main()
