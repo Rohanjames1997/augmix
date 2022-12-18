@@ -47,7 +47,9 @@ model_names = sorted(name for name in models.__dict__
 
 parser = argparse.ArgumentParser(description='Trains an ImageNet Classifier')
 parser.add_argument(
-    'clean_data', metavar='DIR', help='path to clean ImageNet dataset')
+  '--clean_data',
+    type=str,
+    default='')
 parser.add_argument(
     'corrupted_data', metavar='DIR_C', help='path to ImageNet-C dataset')
 parser.add_argument(
