@@ -50,8 +50,8 @@ parser.add_argument(
   '--clean_data',
     type=str,
     default='')
-parser.add_argument(
-    'corrupted_data', metavar='DIR_C', help='path to ImageNet-C dataset')
+# parser.add_argument(
+#     'corrupted_data', metavar='DIR_C', help='path to ImageNet-C dataset')
 parser.add_argument(
     '--model',
     '-m',
