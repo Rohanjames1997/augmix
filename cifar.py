@@ -41,6 +41,7 @@ import torch.backends.cudnn as cudnn
 import torch.nn.functional as F
 from torchvision import datasets
 from torchvision import transforms
+import torchvision.transforms.functional as trnF 
 
 parser = argparse.ArgumentParser(
     description='Trains a CIFAR Classifier',
@@ -324,7 +325,8 @@ def main():
     if not os.path.exists(save_path):
         os.makedirs(save_path)
     save_path += str(i) + ".jpeg"
-    image.save(save_path)
+    img = trnF.to_pil_image(image)
+    img.save(save_path)
     i += 1
   # train_loader = torch.utils.data.DataLoader(
   #     train_data,
