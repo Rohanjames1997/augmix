@@ -26,6 +26,8 @@ import os
 import shutil
 import time
 
+from tqdm import tqdm
+
 import augmentations
 
 import numpy as np
@@ -35,6 +37,7 @@ import torch.nn.functional as F
 from torchvision import datasets
 from torchvision import models
 from torchvision import transforms
+import torchvision.transforms.functional as trnF 
 
 augmentations.IMAGE_SIZE = 224
 
@@ -377,116 +380,129 @@ def main():
       preprocess,
   ])
 
-  traindir = os.path.join(args.clean_data, 'train')
-  valdir = os.path.join(args.clean_data, 'val')
+  # traindir = os.path.join(args.clean_data, 'train')
+  # valdir = os.path.join(args.clean_data, 'val')
+  traindir = args.clean_data
   train_dataset = datasets.ImageFolder(traindir, train_transform)
   train_dataset = AugMixDataset(train_dataset, preprocess)
-  train_loader = torch.utils.data.DataLoader(
-      train_dataset,
-      batch_size=args.batch_size,
-      shuffle=True,
-      num_workers=args.num_workers)
-  val_loader = torch.utils.data.DataLoader(
-      datasets.ImageFolder(valdir, test_transform),
-      batch_size=args.batch_size,
-      shuffle=False,
-      num_workers=args.num_workers)
 
-  if args.pretrained:
-    print("=> using pre-trained model '{}'".format(args.model))
-    net = models.__dict__[args.model](pretrained=True)
-  else:
-    print("=> creating model '{}'".format(args.model))
-    net = models.__dict__[args.model]()
+  loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=True)
+  i = 0
+  for image, target in tqdm(loader):
+    save_path = './IMAGENET_AUGMIX/' + str(target.item()) + '/'
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+    save_path += str(i) + ".jpeg"
+    img = trnF.to_pil_image(image.squeeze())
+    img.save(save_path)
+    i += 1
 
-  optimizer = torch.optim.SGD(
-      net.parameters(),
-      args.learning_rate,
-      momentum=args.momentum,
-      weight_decay=args.decay)
+  # train_loader = torch.utils.data.DataLoader(
+  #     train_dataset,
+  #     batch_size=args.batch_size,
+  #     shuffle=True,
+  #     num_workers=args.num_workers)
+  # val_loader = torch.utils.data.DataLoader(
+  #     datasets.ImageFolder(valdir, test_transform),
+  #     batch_size=args.batch_size,
+  #     shuffle=False,
+  #     num_workers=args.num_workers)
 
-  # Distribute model across all visible GPUs
-  net = torch.nn.DataParallel(net).cuda()
-  cudnn.benchmark = True
+  # if args.pretrained:
+  #   print("=> using pre-trained model '{}'".format(args.model))
+  #   net = models.__dict__[args.model](pretrained=True)
+  # else:
+  #   print("=> creating model '{}'".format(args.model))
+  #   net = models.__dict__[args.model]()
 
-  start_epoch = 0
+  # optimizer = torch.optim.SGD(
+  #     net.parameters(),
+  #     args.learning_rate,
+  #     momentum=args.momentum,
+  #     weight_decay=args.decay)
 
-  if args.resume:
-    if os.path.isfile(args.resume):
-      checkpoint = torch.load(args.resume)
-      start_epoch = checkpoint['epoch'] + 1
-      best_acc1 = checkpoint['best_acc1']
-      net.load_state_dict(checkpoint['state_dict'])
-      optimizer.load_state_dict(checkpoint['optimizer'])
-      print('Model restored from epoch:', start_epoch)
+  # # Distribute model across all visible GPUs
+  # net = torch.nn.DataParallel(net).cuda()
+  # cudnn.benchmark = True
 
-  if args.evaluate:
-    test_loss, test_acc1 = test(net, val_loader)
-    print('Clean\n\tTest Loss {:.3f} | Test Acc1 {:.3f}'.format(
-        test_loss, 100 * test_acc1))
+  # start_epoch = 0
 
-    corruption_accs = test_c(net, test_transform)
-    for c in CORRUPTIONS:
-      print('\t'.join([c] + map(str, corruption_accs[c])))
+  # if args.resume:
+  #   if os.path.isfile(args.resume):
+  #     checkpoint = torch.load(args.resume)
+  #     start_epoch = checkpoint['epoch'] + 1
+  #     best_acc1 = checkpoint['best_acc1']
+  #     net.load_state_dict(checkpoint['state_dict'])
+  #     optimizer.load_state_dict(checkpoint['optimizer'])
+  #     print('Model restored from epoch:', start_epoch)
 
-    print('mCE (normalized by AlexNet): ', compute_mce(corruption_accs))
-    return
+  # if args.evaluate:
+  #   test_loss, test_acc1 = test(net, val_loader)
+  #   print('Clean\n\tTest Loss {:.3f} | Test Acc1 {:.3f}'.format(
+  #       test_loss, 100 * test_acc1))
 
-  if not os.path.exists(args.save):
-    os.makedirs(args.save)
-  if not os.path.isdir(args.save):
-    raise Exception('%s is not a dir' % args.save)
+  #   corruption_accs = test_c(net, test_transform)
+  #   for c in CORRUPTIONS:
+  #     print('\t'.join([c] + map(str, corruption_accs[c])))
 
-  log_path = os.path.join(args.save,
-                          'imagenet_{}_training_log.csv'.format(args.model))
-  with open(log_path, 'w') as f:
-    f.write(
-        'epoch,batch_time,train_loss,train_acc1(%),test_loss,test_acc1(%)\n')
+  #   print('mCE (normalized by AlexNet): ', compute_mce(corruption_accs))
+  #   return
 
-  best_acc1 = 0
-  print('Beginning training from epoch:', start_epoch + 1)
-  for epoch in range(start_epoch, args.epochs):
-    adjust_learning_rate(optimizer, epoch)
+  # if not os.path.exists(args.save):
+  #   os.makedirs(args.save)
+  # if not os.path.isdir(args.save):
+  #   raise Exception('%s is not a dir' % args.save)
 
-    train_loss_ema, train_acc1_ema, batch_ema = train(net, train_loader,
-                                                      optimizer)
-    test_loss, test_acc1 = test(net, val_loader)
+  # log_path = os.path.join(args.save,
+  #                         'imagenet_{}_training_log.csv'.format(args.model))
+  # with open(log_path, 'w') as f:
+  #   f.write(
+  #       'epoch,batch_time,train_loss,train_acc1(%),test_loss,test_acc1(%)\n')
 
-    is_best = test_acc1 > best_acc1
-    best_acc1 = max(test_acc1, best_acc1)
-    checkpoint = {
-        'epoch': epoch,
-        'model': args.model,
-        'state_dict': net.state_dict(),
-        'best_acc1': best_acc1,
-        'optimizer': optimizer.state_dict(),
-    }
+  # best_acc1 = 0
+  # print('Beginning training from epoch:', start_epoch + 1)
+  # for epoch in range(start_epoch, args.epochs):
+  #   adjust_learning_rate(optimizer, epoch)
 
-    save_path = os.path.join(args.save, 'checkpoint.pth.tar')
-    torch.save(checkpoint, save_path)
-    if is_best:
-      shutil.copyfile(save_path, os.path.join(args.save, 'model_best.pth.tar'))
+  #   train_loss_ema, train_acc1_ema, batch_ema = train(net, train_loader,
+  #                                                     optimizer)
+  #   test_loss, test_acc1 = test(net, val_loader)
 
-    with open(log_path, 'a') as f:
-      f.write('%03d,%0.3f,%0.6f,%0.2f,%0.5f,%0.2f\n' % (
-          (epoch + 1),
-          batch_ema,
-          train_loss_ema,
-          100. * train_acc1_ema,
-          test_loss,
-          100. * test_acc1,
-      ))
+  #   is_best = test_acc1 > best_acc1
+  #   best_acc1 = max(test_acc1, best_acc1)
+  #   checkpoint = {
+  #       'epoch': epoch,
+  #       'model': args.model,
+  #       'state_dict': net.state_dict(),
+  #       'best_acc1': best_acc1,
+  #       'optimizer': optimizer.state_dict(),
+  #   }
 
-    print(
-        'Epoch {:3d} | Train Loss {:.4f} | Test Loss {:.3f} | Test Acc1 '
-        '{:.2f}'
-        .format((epoch + 1), train_loss_ema, test_loss, 100. * test_acc1))
+  #   save_path = os.path.join(args.save, 'checkpoint.pth.tar')
+  #   torch.save(checkpoint, save_path)
+  #   if is_best:
+  #     shutil.copyfile(save_path, os.path.join(args.save, 'model_best.pth.tar'))
 
-  corruption_accs = test_c(net, test_transform)
-  for c in CORRUPTIONS:
-    print('\t'.join(map(str, [c] + corruption_accs[c])))
+  #   with open(log_path, 'a') as f:
+  #     f.write('%03d,%0.3f,%0.6f,%0.2f,%0.5f,%0.2f\n' % (
+  #         (epoch + 1),
+  #         batch_ema,
+  #         train_loss_ema,
+  #         100. * train_acc1_ema,
+  #         test_loss,
+  #         100. * test_acc1,
+  #     ))
 
-  print('mCE (normalized by AlexNet):', compute_mce(corruption_accs))
+  #   print(
+  #       'Epoch {:3d} | Train Loss {:.4f} | Test Loss {:.3f} | Test Acc1 '
+  #       '{:.2f}'
+  #       .format((epoch + 1), train_loss_ema, test_loss, 100. * test_acc1))
+
+  # corruption_accs = test_c(net, test_transform)
+  # for c in CORRUPTIONS:
+  #   print('\t'.join(map(str, [c] + corruption_accs[c])))
+
+  # print('mCE (normalized by AlexNet):', compute_mce(corruption_accs))
 
 
 if __name__ == '__main__':
