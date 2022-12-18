@@ -245,9 +245,10 @@ class AugMixDataset(torch.utils.data.Dataset):
     if self.no_jsd:
       return aug(x, self.preprocess), y
     else:
-      im_tuple = (self.preprocess(x), aug(x, self.preprocess),
-                  aug(x, self.preprocess))
-      return im_tuple, y
+      # im_tuple = (self.preprocess(x), aug(x, self.preprocess),
+      #             aug(x, self.preprocess))
+      # return im_tuple, y
+      return aug(x, self.preprocess), y
 
   def __len__(self):
     return len(self.dataset)
