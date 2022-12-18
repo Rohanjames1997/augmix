@@ -325,7 +325,7 @@ def main():
     if not os.path.exists(save_path):
         os.makedirs(save_path)
     save_path += str(i) + ".jpeg"
-    img = trnF.to_pil_image(image)
+    img = trnF.to_pil_image(image.squeeze())
     img.save(save_path)
     i += 1
   # train_loader = torch.utils.data.DataLoader(
